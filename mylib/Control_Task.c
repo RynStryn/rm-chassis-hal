@@ -4,7 +4,7 @@
 #include "inc/Remote_Control.h"
 #include "led.h"
 
-extern CAN_HandleTypeDef hcan2;
+
 
 int  g_time = 0;
 int  classis_offline_cnt = 0;
@@ -25,12 +25,10 @@ void Control_Task(void)
 {
     g_time++;
     wheel_offline_detect();
-    Chassis_Wheel_Fdb_Set(
-        &Chassis,
-        Chassis_Encoder_2_Real(&(Motor_c610c620_Encoder[0].Speed_dps)),
-        Chassis_Encoder_2_Real(&(Motor_c610c620_Encoder[1].Speed_dps)),
-        Chassis_Encoder_2_Real(&(Motor_c610c620_Encoder[2].Speed_dps)),
-        Chassis_Encoder_2_Real(&(Motor_c610c620_Encoder[3].Speed_dps)));
+    for (int i = 0; i < 4; i++)
+        Chassis_Wheel_Fdb_Set(
+            &Chassis.wheel[i],
+            Wheel_angVel_to_linVel(Motor_Encoder[i].angVel_dps, Chassis.wheel[i].linVel));
     Remote_Ctrl_Chassis();
     if (g_time % 2000 == 1000)
         HARD_WDG_ON;
@@ -38,28 +36,4 @@ void Control_Task(void)
         HARD_WDG_OFF;
     if (g_time % 10000 == 0)
         g_time = 0;
-}
-
-void CAN_Send_Task(void)
-{
-    static int CAN_SEND_CNT;
-    CAN_SEND_CNT++;
-
-    if (CAN_SEND_CNT % 4 == 1)
-    {
-        if ((wheelIsOK[0] == 1 && wheelIsOK[1] == 1
-            && wheelIsOK[2] == 1 && wheelIsOK[3] == 1)
-            || classis_offline_flag == 1)
-        {
-            Motor_c610andc620_out1(
-                &hcan2,
-                Chassis.Pid_Speed[0].out,
-                Chassis.Pid_Speed[1].out,
-                Chassis.Pid_Speed[2].out,
-                Chassis.Pid_Speed[3].out);
-        }
-    }
-
-    if (CAN_SEND_CNT % 10000 == 0)
-        CAN_SEND_CNT = 0;
 }

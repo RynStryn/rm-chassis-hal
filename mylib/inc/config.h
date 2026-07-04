@@ -13,7 +13,6 @@ typedef uint32_t u32;
 #define KEY_LOW_LIMIT              25
 #define KEY_SHORT_LONG_BOUNDARY    500
 
-#define CHASSIS_DRIVE_PID_PARAM     15000, 6000, 35000, 0, 0
 
 #define CHASSIS_DIR_BIAS            45
 #define CHASSIS_AUTO_ESCAPE_SWITCH  0
@@ -46,5 +45,7 @@ typedef uint32_t u32;
 #define ROTATE_SPEED_PATROL             2.5f
 #define ROTATE_SPEED_AUTO_AIM           2.0f
 #define ROTATE_DIFFERENTIAL_AMPLITUDE   0.5f
+
+#define CHASSIS_WHEEL_RADIUS        0.16219f
 
 #endif

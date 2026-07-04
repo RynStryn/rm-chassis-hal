@@ -1,5 +1,7 @@
 #include "inc/Remote_Control.h"
+
 #include "inc/config.h"
+#include "main.h"
 #include <math.h>
 #include <stdlib.h>
 
@@ -16,7 +18,7 @@ static void Key_Single_Click_Cooling(Key_Mouse_Action_t* pAction);
 static void Key_Single_Click_CD(Key_Mouse_Action_t* pAction);
 static void Single_Key_Mouse_Action_Detection(Key_Mouse_Action_t* pAction, int State);
 static void RmtCtrl_Input_Interpreter(void);
-static void Mode_Task_Chassis(void);
+static void Chassis_Mode_Task(void);
 
 void Remote_Init(void)
 {
@@ -42,7 +44,7 @@ void Remote_Ctrl_Chassis(void)
         RemoteCtrl_Mode = NUll;
 
     RmtCtrl_Input_Interpreter();
-    Mode_Task_Chassis();
+    Chassis_Mode_Task();
 
     RemoteCtrl_Mode_Last = RemoteCtrl_Mode;
 }
@@ -214,11 +216,10 @@ static void RmtCtrl_Input_Interpreter(void)
         Chassis.Chassis_Mode = CHASSIS_RELAX;
         for (int i = 0; i < 4; i++)
         {
-            Chassis.Pid_Speed[i].iout = 0;
+            pid_clear(&Chassis.wheel[i].Speed_Pid);
         }
         return;
     }
-
     if (RemoteCtrl_Mode == REMOTE || RemoteCtrl_Mode == KEY_MOUSE)
     {
         if (Chassis.Chassis_Mode == CHASSIS_RELAX)
@@ -231,7 +232,7 @@ static void RmtCtrl_Input_Interpreter(void)
             if (Remote_data.Remote_clicker.s1_Action == M_2_L)
             {
                 if (Chassis.Chassis_Mode == CHASSIS_INDEPEND)
-                    Chassis.Chassis_Mode = CHASSIS_CLOCKWISE_ROTATE;
+                    Chassis.Chassis_Mode = CHASSIS_CW_ROTATE;
                 else
                     Chassis.Chassis_Mode = CHASSIS_INDEPEND;
             }
@@ -239,24 +240,23 @@ static void RmtCtrl_Input_Interpreter(void)
     }
 }
 
-static void Mode_Task_Chassis(void)
+static void Chassis_Mode_Task(void)
 {
     switch (Chassis.Chassis_Mode)
     {
         case CHASSIS_RELAX:
         {
-            Chassis_Wheel_Set_Cal(&Chassis, 0, 0, 0);
+            Chassis_Wheel_Task(&Chassis, 0, 0, 0);
             for (int i = 0; i < 4; i++)
             {
-                Chassis.Pid_Speed[i].err[NOW] = 0;
-                Chassis.Pid_Speed[i].out      = 0;
+                pid_clear(&Chassis.wheel[i].Speed_Pid);
             }
         }
         break;
 
         case CHASSIS_STOP:
         {
-            Chassis_Wheel_Set_Cal(&Chassis, 0, 0, 0.00001f);
+            Chassis_Wheel_Task(&Chassis, 0, 0, 0.00001f);
         }
         break;
 
@@ -266,7 +266,7 @@ static void Mode_Task_Chassis(void)
 
             if (RemoteCtrl_Mode == REMOTE)
             {
-                Chassis_Wheel_Set_Cal(
+                Chassis_Wheel_Task(
                     &Chassis,
                     -(float)(Remote_data.Remote_clicker.ch0 - 1024)
                         * CHASSIS_REMOTE_SENSITIVITY,
@@ -276,7 +276,7 @@ static void Mode_Task_Chassis(void)
             }
             else if (RemoteCtrl_Mode == KEY_MOUSE)
             {
-                Chassis_Wheel_Set_Cal(
+                Chassis_Wheel_Task(
                     &Chassis,
                     -(float)(Remote_data.key.Key_D_Action.Flag
                              - Remote_data.key.Key_A_Action.Flag)
@@ -295,13 +295,13 @@ static void Mode_Task_Chassis(void)
         }
         break;
 
-        case CHASSIS_CLOCKWISE_ROTATE:
+        case CHASSIS_CW_ROTATE:
         {
             Chassis_Dirction_Angle_Set(&Chassis, 0 + CHASSIS_DIR_BIAS);
 
             if (RemoteCtrl_Mode == REMOTE)
             {
-                Chassis_Wheel_Set_Cal(
+                Chassis_Wheel_Task(
                     &Chassis,
                     -(float)(Remote_data.Remote_clicker.ch0 - 1024)
                         * CHASSIS_REMOTE_SENSITIVITY * 0.8f,
@@ -311,7 +311,7 @@ static void Mode_Task_Chassis(void)
             }
             else if (RemoteCtrl_Mode == KEY_MOUSE)
             {
-                Chassis_Wheel_Set_Cal(
+                Chassis_Wheel_Task(
                     &Chassis,
                     -(float)(Remote_data.key.Key_D_Action.Flag
                              - Remote_data.key.Key_A_Action.Flag)
@@ -324,13 +324,13 @@ static void Mode_Task_Chassis(void)
         }
         break;
 
-        case CHASSIS_ANTI_CLOCKWISE_ROTATE:
+        case CHASSIS_CCW_ROTATE:
         {
             Chassis_Dirction_Angle_Set(&Chassis, 0 + CHASSIS_DIR_BIAS);
 
             if (RemoteCtrl_Mode == REMOTE)
             {
-                Chassis_Wheel_Set_Cal(
+                Chassis_Wheel_Task(
                     &Chassis,
                     -(float)(Remote_data.Remote_clicker.ch0 - 1024)
                         * CHASSIS_REMOTE_SENSITIVITY * 0.8f,
@@ -340,7 +340,7 @@ static void Mode_Task_Chassis(void)
             }
             else if (RemoteCtrl_Mode == KEY_MOUSE)
             {
-                Chassis_Wheel_Set_Cal(
+                Chassis_Wheel_Task(
                     &Chassis,
                     -(float)(Remote_data.key.Key_D_Action.Flag
                              - Remote_data.key.Key_A_Action.Flag)
@@ -355,7 +355,7 @@ static void Mode_Task_Chassis(void)
 
         default:
         {
-            Chassis_Wheel_Set_Cal(&Chassis, 0, 0, 0);
+            Chassis_Wheel_Task(&Chassis, 0, 0, 0);
         }
         break;
     }

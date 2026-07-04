@@ -152,7 +152,7 @@ int main(void)
   Lazer_Config();
 
   /* Initialize chassis PID */
-  Chassis_Omnidir_Wheel_Pid_Init(&Chassis);
+      Chassis_Wheel_Pid_Init(&Chassis);
 
   /* Initialize remote control (USART1 DBus DMA RX) */
   Remote_Init();

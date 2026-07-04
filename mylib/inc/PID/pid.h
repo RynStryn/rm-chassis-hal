@@ -55,8 +55,7 @@ void PID_struct_init(
     float kd);
 
 float pid_calc(pid_t *pid, float fdb, float ref);
-float pid_calc1(pid_t *pid, float get, float set);
-void  pid_clr(pid_t *pid);
+void  pid_clear(pid_t *pid);
 void abs_limit(float *a, float ABS_MAX);
 
 

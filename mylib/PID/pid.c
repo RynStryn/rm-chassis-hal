@@ -77,44 +77,6 @@ float pid_calc(pid_t *pid, float get, float set)
     return pid->out;
 }
 
-float pid_calc1(pid_t *pid, float get, float set)
-{
-  pid->get = get;
-  pid->set = set;
-  pid->err[NOW] = set - get;
-
-  if ((pid->input_max_err != 0) && (fabs(pid->err[NOW]) > pid->input_max_err))
-      return 0;
-
-  if (pid->pid_mode == POSITION_PID)
-  {
-      pid->pout = pid->p * pid->err[NOW];
-      pid->iout += pid->i * pid->err[NOW];
-      pid->dout = pid->d * (pid->err[NOW] - pid->err[LAST]);
-
-      abs_limit(&(pid->iout), pid->integral_limit);
-      pid->out = pid->pout + pid->iout + pid->dout;
-      abs_limit(&(pid->out), pid->max_out);
-  }
-  else if (pid->pid_mode == DELTA_PID)
-  {
-      pid->pout = pid->p * (pid->err[NOW] - pid->err[LAST]);
-      pid->iout = pid->i * pid->err[NOW];
-      pid->dout = pid->d * (pid->err[NOW] - 2 * pid->err[LAST] + pid->err[LLAST]);
-
-      pid->out += pid->pout + pid->dout;
-      abs_limit(&(pid->out), pid->max_out);
-  }
-
-  pid->err[LLAST] = pid->err[LAST];
-  pid->err[LAST]  = pid->err[NOW];
-
-  if ((pid->output_deadband != 0) && (fabs(pid->out) < pid->output_deadband))
-    return 0;
-  else
-    return pid->out;
-}
-
 void PID_struct_init(
     pid_t*   pid,
     uint32_t mode,
@@ -131,7 +93,7 @@ void PID_struct_init(
   pid->f_pid_reset(pid, kp, ki, kd);
 }
 
-void pid_clr(pid_t *pid)
+void pid_clear(pid_t *pid)
 {
   pid->pout = 0;
   pid->iout = 0;
