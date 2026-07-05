@@ -26,10 +26,13 @@ void Control_Task(void)
     g_time++;
     wheel_offline_detect();
     for (int i = 0; i < 4; i++)
+        {
         Chassis_Wheel_Fdb_Set(
-            &Chassis.wheel[i],
-            Wheel_angVel_to_linVel(Motor_Encoder[i].angVel_dps, Chassis.wheel[i].linVel));
+           &Chassis.wheel[i],
+           Wheel_angVel_to_linVel(Motor_Encoder[i].angVel_dps, Chassis.wheel[i].linVel));
+    }
     Remote_Ctrl_Chassis();
+
     if (g_time % 2000 == 1000)
         HARD_WDG_ON;
     if (g_time % 2000 == 0)

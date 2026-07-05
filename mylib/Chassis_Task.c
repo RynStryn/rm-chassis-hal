@@ -35,8 +35,7 @@ void Chassis_V_Ref_Set(Chassis_t* Chassis, float _V_x, float _V_y, float _w)
 
     if ( Chassis->Chassis_Mode == CHASSIS_CW_ROTATE
          || Chassis->Chassis_Mode == CHASSIS_CCW_ROTATE
-         || Chassis->Chassis_Mode == CHASSIS_CLOCKWISE_ROTATE_VAR_SPEED
-         || Chassis->Chassis_Mode == CHASSIS_ANTI_CLOCKWISE_ROTATE_VAR_SPEED )
+)
     {
     } else
     {
@@ -83,11 +82,11 @@ void Chassis_Auto_Escape(Chassis_t* _Chassis, float _T)
 
 
 
-float Chassis_Ramp(Chassis_t* _Chassis)
+void Chassis_Ramp(Chassis_t* _Chassis)
 {
     float static V_x_Last, V_y_Last, W_Last;
     u16 static Ramp_CNT;
-    u16 static Chassis_Fast_CNT_x, Chassis_Fast_CNT_y, Chassis_Fast_CNT;
+    u16 static Chassis_Fast_CNT_x, Chassis_Fast_CNT;
 
     Chassis_Fast_CNT = 0;
     if ( fabs(_Chassis->wheel[0].Speed_Fdb) > 0.5
@@ -156,6 +155,7 @@ float Wheel_angVel_to_linVel(float spd_dps,float spd_mps)
 {
     spd_mps= (spd_dps / M3508_DEG_PER_REV)
            * (PI * CHASSIS_WHEEL_RADIUS) / M3508_REDUCTION_RATIO;
+    return spd_mps;
 }
 
 
@@ -167,17 +167,9 @@ void Chassis_Wheel_Pid_Init(Chassis_t* Chassis)
             &(Chassis->wheel[i].Speed_Pid), POSITION_PID, 15000, 6000, 35000, 0, 0);
 }
 
-void Chassis_Wheel_Fdb_Set(
-    Chassis_t* Chassis,
-    float      fdb_0,
-    float      fdb_1,
-    float      fdb_2,
-    float      fdb_3)
+void Chassis_Wheel_Fdb_Set(wheel_t* w, float fdb)
 {
-    Chassis->wheel[0].Speed_Fdb = fdb_0;
-    Chassis->wheel[1].Speed_Fdb = fdb_1;
-    Chassis->wheel[2].Speed_Fdb = fdb_2;
-    Chassis->wheel[3].Speed_Fdb = fdb_3;
+    w->Speed_Fdb = fdb;
 }
 
 void Chassis_Resolve_Wheel2Vel(Chassis_t* Chassis)
@@ -240,44 +232,16 @@ void Chassis_Wheel_Task(
 
 void Chassis_Speed_Cal(Chassis_t* Chassis)
 {
-    float static Dirction_Angle_Medium;
-    Dirction_Angle_Medium = Chassis->Dirction_Angle_deg * 3.1415926f / 180.0f;
-    Chassis->V_x_Fdb      = Chassis->wheel[0].Speed_Fdb * cos(Dirction_Angle_Medium)
-                       + Chassis->wheel[1].Speed_Fdb * sin(Dirction_Angle_Medium)
-                       + Chassis->wheel[2].Speed_Fdb * -cos(Dirction_Angle_Medium)
-                       + Chassis->wheel[3].Speed_Fdb * -sin(Dirction_Angle_Medium);
+    float static Dirction_Angle_rad;
+    Dirction_Angle_rad = Chassis->Dirction_Angle_deg * 3.1415926f / 180.0f;
+    Chassis->V_x_Fdb      = Chassis->wheel[0].Speed_Fdb * cos(Dirction_Angle_rad)
+                       + Chassis->wheel[1].Speed_Fdb * sin(Dirction_Angle_rad)
+                       + Chassis->wheel[2].Speed_Fdb * -cos(Dirction_Angle_rad)
+                       + Chassis->wheel[3].Speed_Fdb * -sin(Dirction_Angle_rad);
 
-    Chassis->V_y_Fdb = Chassis->wheel[0].Speed_Fdb * -sin(Dirction_Angle_Medium)
-                       + Chassis->wheel[1].Speed_Fdb * cos(Dirction_Angle_Medium)
-                       + Chassis->wheel[2].Speed_Fdb * sin(Dirction_Angle_Medium)
-                       + Chassis->wheel[3].Speed_Fdb * -cos(Dirction_Angle_Medium);
+    Chassis->V_y_Fdb = Chassis->wheel[0].Speed_Fdb * -sin(Dirction_Angle_rad)
+                       + Chassis->wheel[1].Speed_Fdb * cos(Dirction_Angle_rad)
+                       + Chassis->wheel[2].Speed_Fdb * sin(Dirction_Angle_rad)
+                       + Chassis->wheel[3].Speed_Fdb * -cos(Dirction_Angle_rad);
 }
 
-float Chassis_Angle_deg;
-void  Chassis_State_Detect(Chassis_t* _Chassis)
-{
-    u8 RUN_CNT           = 0;
-    int static RUN_Timer = 0;
-
-    if ( (fabs(_Chassis->wheel[0].Speed_Fdb) + fabs(_Chassis->wheel[1].Speed_Fdb)
-          + fabs(_Chassis->wheel[2].Speed_Fdb) + fabs(_Chassis->wheel[3].Speed_Fdb))
-         < 0.4 )
-    {
-        _Chassis->Chassis_Move_State = CHAS_STATE_STOP;
-    } else
-    {
-        for ( int i = 0; i < 4; i++ )
-        {
-            if ( fabs(_Chassis->wheel[i].Speed_Fdb) > 1.1f )
-                RUN_CNT++;
-        }
-        if ( RUN_CNT >= 2 )
-            RUN_Timer++;
-        else
-            RUN_Timer = 0;
-        if ( RUN_Timer > 800 )
-            _Chassis->Chassis_Move_State = CHAS_STATE_RUN;
-        else
-            _Chassis->Chassis_Move_State = CHAS_STATE_RUN_READY;
-    }
-}

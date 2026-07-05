@@ -37,7 +37,7 @@ typedef struct pid_t
   void (*f_param_init)(struct pid_t *pid,
                        uint32_t      pid_mode,
                        uint32_t      max_output,
-                       float      inte_limit,
+                       uint32_t      inte_limit,
                        float         p,
                        float         i,
                        float         d);
@@ -49,7 +49,7 @@ void PID_struct_init(
     pid_t*   pid,
     uint32_t mode,
     uint32_t maxout,
-    float intergral_limit,
+    uint32_t intergral_limit,
     float kp,
     float ki,
     float kd);
