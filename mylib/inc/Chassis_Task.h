@@ -4,81 +4,51 @@
 #include "config.h"
 #include "pid.h"
 #include "stm32f4xx_hal.h"
-float chassis_heading_angle;
-float chassis_speed;
-float gyro_angle;
-//gyro_angle(t0)
-float gyro_angle_base;
-
-
-typedef enum {
-    WHEEL_NORMAL,
-    WHEEL_GET_TRAP,
-} Chassis_Wheel_State_e;
+typedef struct {
+    float angle;
+    float angle_base;
+    float angle_rel_base;
+    float omega;
+} gyro_t;
 
 typedef struct {
-    float                linVel;
-    float                Speed_Ref;
-    float                Speed_Fdb;
-    Chassis_Wheel_State_e State;
-    pid_t                Speed_Pid;
+    float Vel_ang[4];
+    float Vel_ang_ref[4];
+    float angle_rel_yaw[4];  // 枪口指向的方向是正方向(Y)
 } wheel_t;
-
 
 typedef enum {
     CHASSIS_RELAX = 0,
-    CHASSIS_STOP,
-    CHASSIS_INDEPEND,
-    CHASSIS_FOLLOW_GIMBLE,
-    CHASSIS_CW_ROTATE,
-    CHASSIS_CCW_ROTATE,
-} Chassis_Mode_e;
-
-typedef enum {
-    CHAS_STATE_STOP,
-    CHAS_STATE_RUN_READY,
-    CHAS_STATE_RUN,
-} Chassis_Move_State_e;
+    CHASSIS_FOLLOW_GIMBAL,
+    CHASSIS_INDEPENDENT,  // 纯平移
+    CHASSIS_ROTATE,
+    CHASSIS_REV_ROTATE,
+} chassis_mode_e;
 
 typedef struct {
-    float                V_x;
-    float                V_y;
-    float                V_x_Fdb;
-    float                V_y_Fdb;
-    float                w;
-    float                Dirction_Angle_deg;
-
-    u8                   Flag_Out_Break;
-    u8                   Flag_Power_Control_Auto;
-
-    Chassis_Mode_e             Chassis_Mode;
-    Chassis_Mode_e             Chassis_Mode_Last;
-    Chassis_Move_State_e       Chassis_Move_State;
-    wheel_t wheel[4];
-} Chassis_t;
-
+    float          angle_rel_yaw_fdb;
+    float          angle_rel_yaw_ref;
+    float          omega_ref;
+    float          omega_fdb;
+    float          V_X_ref;//往右
+    float          V_X_fdb;
+    float          V_Y_ref;//往前
+    float          V_Y_fdb;
+    chassis_mode_e mode;
+    chassis_mode_e last_mode;
+} chassis_t;
+// 这些量省略rel_base
 typedef struct {
-    float                Power_Limit[4];
-    float                Power_Limit_By_Current_k[4];
-    float                Max_Power;
-}power_limit_t;
+    float yaw_angle_fdb;  //
+    float yaw_angle_ref;
+    float yaw_omega_fdb;
+    float yaw_omega_ref;
+} gimbal_t;
 
-extern Chassis_t Chassis;
-
-void Chassis_Wheel_Pid_Init(Chassis_t* Chassis);
-void Chassis_Resolve_Wheel2Vel(Chassis_t* Chassis);
-void Chassis_Wheel_Cal_Pid(Chassis_t* Chassis);
-void Chassis_Wheel_Fdb_Set(wheel_t* w, float fdb);
-void Chassis_Wheel_Task(
-    Chassis_t* Chassis,
-    float      V_x,
-    float      V_y,
-    float      w);
-void  Chassis_Speed_Cal(Chassis_t* Chassis);
-void  Chassis_Dirction_Angle_Set(Chassis_t* Chassis, float Dirction_Angle);
-void  Chassis_Out_Limit(Chassis_t* Chassis);
-float Wheel_angVel_to_linVel(float spd_dps,float spd_mps);
-void  Chassis_V_Ref_Set(Chassis_t* Chassis, float _V_x, float _V_y, float _w);
-void  Chassis_State_Detect(Chassis_t* _Chassis);
+extern chassis_t g_Chassis;
+extern wheel_t   g_wheel;
+extern gyro_t    g_gyro;
+void  chassis_pid_init(void);
+void  chassis_task(chassis_t* chassis, wheel_t* wheel, gyro_t* gyro);
 
 #endif

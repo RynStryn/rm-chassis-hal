@@ -1,247 +1,176 @@
-#include "inc/Chassis_Task.h"
-#include "inc/Can_Motor.h"
-#include "inc/config.h"
+#include "Chassis_Task.h"
 #include <math.h>
+#include "Can_Motor.h"
+#include "Remote_Control.h"
+
 extern CAN_HandleTypeDef hcan2;
 
-Chassis_t Chassis = {
-    .wheel[0].State = WHEEL_NORMAL,
-    .wheel[1].State = WHEEL_NORMAL,
-    .wheel[2].State = WHEEL_NORMAL,
-    .wheel[3].State = WHEEL_NORMAL,
-    .Flag_Power_Control_Auto = 1,
-};
+// 假装有一个云台,其响应是即时的
+gimbal_t  g_gimbal;
+gyro_t    g_gyro;
+chassis_t g_Chassis = {0};
+wheel_t   g_wheel   = {0};
 
-void Chassis_Dirction_Angle_Set(Chassis_t* Chassis, float Dirction_Angle_deg)
+static const float L                       = 0.23f;
+static const float wheel_placement_bias[4] = {45.0f, 135.0f, -135.0f, -45.0f};
+static const float ROTATE_SPEED            = 2.5f;
+
+static PID_t pid_wheel[4];
+static PID_t pid_chassis_follow_yaw;
+
+
+void chassis_pid_init(void)
 {
-    Chassis->Dirction_Angle_deg = Dirction_Angle_deg;
+    for (int i = 0; i < 4; i++)
+    {
+        PID_Init(
+            &pid_wheel[i], PID_POSITION, 10.0f, 0.1f, 0.0f, 10000.0f, 5000.0f);
+    }
+    PID_Init(&pid_chassis_follow_yaw,
+        PID_POSITION,
+        30.0f,
+        0.0f,
+        0.0f,
+        3000.0f,
+        1000.0f);
 }
 
-void Chassis_V_Ref_Set(Chassis_t* Chassis, float _V_x, float _V_y, float _w)
+
+void wheel_angle_rel_yaw_set(wheel_t* wheel)
 {
-    Chassis->V_x = _V_x;
-    Chassis->V_y = _V_y;
-    Chassis->w   = _w;
-
-    if ( Chassis->V_x > CHASSIS_VX_LIMIT )
-        Chassis->V_x = CHASSIS_VX_LIMIT;
-    else if ( Chassis->V_x < -CHASSIS_VX_LIMIT )
-        Chassis->V_x = -CHASSIS_VX_LIMIT;
-
-    if ( Chassis->V_y > CHASSIS_VY_LIMIT )
-        Chassis->V_y = CHASSIS_VY_LIMIT;
-    else if ( Chassis->V_y < -CHASSIS_VY_LIMIT )
-        Chassis->V_y = -CHASSIS_VY_LIMIT;
-
-    if ( Chassis->Chassis_Mode == CHASSIS_CW_ROTATE
-         || Chassis->Chassis_Mode == CHASSIS_CCW_ROTATE
-)
+    for (int i = 0; i < 4; i++)
     {
-    } else
+        wheel->angle_rel_yaw[i]
+            = wheel_placement_bias[i] - g_gimbal.yaw_angle_fdb;
+    }
+}
+static void resolve_update_wheel_ref(chassis_t* chassis, wheel_t* wheel)
+{
+    float Vel_lin_ref[4] = {0};
+    for (int i = 0; i < 4; i++)
     {
-        if ( Chassis->w > CHASSIS_W_LIMIT )
-            Chassis->w = CHASSIS_W_LIMIT;
-        else if ( Chassis->w < -CHASSIS_W_LIMIT )
-            Chassis->w = -CHASSIS_W_LIMIT;
+        float theta           = wheel->angle_rel_yaw[i] * DEG_TO_RAD;
+        Vel_lin_ref[i]        = (chassis->V_X_ref * cosf(theta)
+            + chassis->V_Y_ref * sinf(theta) + chassis->omega_ref * L);
+        wheel->Vel_ang_ref[i] = (Vel_lin_ref[i] / WHEEL_RADIUS) * RAD_TO_DEG;
     }
 }
 
-void Chassis_Auto_Escape(Chassis_t* _Chassis, float _T)
+
+void wheelset_cal_send(wheel_t* wheel)
 {
-    int static _CNT[4];
-    float static _Time[4];
-
-    for ( int i = 0; i < 4; i++ )
+    for (int i = 0; i < 4; i++)
     {
-        if ( fabs(_Chassis->wheel[i].Speed_Ref - _Chassis->wheel[i].Speed_Fdb)
-             > WHEEL_GET_TRAP_V_THRESHOLD )
-        {
-            if ( _CNT[i] < 20000 )
-                _CNT[i]++;
-        } else
-            _CNT[i] = 0;
+        PID_Calc(&pid_wheel[i], wheel->Vel_ang[i], wheel->Vel_ang_ref[i]);
+    }
+    C620_Out_Send(&hcan2,
+        pid_wheel[0].out,
+        pid_wheel[1].out,
+        pid_wheel[2].out,
+        pid_wheel[3].out);
+}
 
-        _Time[i] = _CNT[i] * _T;
-        if ( _Time[i] > WHEEL_GET_TRAP_TIME_THRESHOLD )
+static void Chassis_Clear(void)
+{
+    for (int i = 0; i < 4; i++)
+    {
+        PID_Clear(&pid_wheel[i]);
+    }
+    PID_Clear(&pid_chassis_follow_yaw);
+    g_Chassis.V_X_ref   = 0;
+    g_Chassis.V_Y_ref   = 0;
+    g_Chassis.omega_ref = 0;
+    g_gyro.angle_base   = g_gyro.angle;
+}
+
+void wheel_fdb_update(void)
+{
+    for (int i = 0; i < 4; i++)
+        g_wheel.Vel_ang[i] = Motor_Encoder[i].Omega_rpm * RPM_TO_DPS;
+}
+
+void gimbal_task()
+{
+    g_gimbal.yaw_angle_ref += yaw_ang_inc;
+    // 假定即时响应
+    g_gimbal.yaw_angle_fdb = g_gimbal.yaw_angle_ref;
+    g_gimbal.yaw_omega_fdb = g_gimbal.yaw_omega_ref;
+}
+int first_time1 = 1;
+int first_time2 = 1;
+int first_time3 = 1;
+void chassis_task(chassis_t* chassis, wheel_t* wheel, gyro_t* gyro)
+{
+    RC_Cmd_Interpreter();
+    wheel_fdb_update();
+    g_Chassis.angle_rel_yaw_fdb = g_gyro.angle - g_gimbal.yaw_angle_fdb;
+    g_Chassis.angle_rel_yaw_ref = g_gyro.angle - g_gimbal.yaw_angle_ref;
+    if (chassis->last_mode != chassis->mode)
+    {
+        Chassis_Clear();
+        first_time1=0;
+        first_time2=0;
+        first_time3=0;
+    }
+    switch (chassis->mode)
+    {
+        case CHASSIS_RELAX:
         {
-            _Chassis->wheel[i].State = WHEEL_GET_TRAP;
-        } else
-        {
-            _Chassis->wheel[i].State = WHEEL_NORMAL;
+            Chassis_Clear();
+            break;
         }
-    }
-
-    if ( _Chassis->wheel[0].State == WHEEL_GET_TRAP
-         || _Chassis->wheel[1].State == WHEEL_GET_TRAP
-         || _Chassis->wheel[2].State == WHEEL_GET_TRAP
-         || _Chassis->wheel[3].State == WHEEL_GET_TRAP )
-    {
-        _Chassis->V_x = _Chassis->V_x * CHASSIS_SPEED_UP_COEFFICIENT;
-    }
-}
-
-
-
-void Chassis_Ramp(Chassis_t* _Chassis)
-{
-    float static V_x_Last, V_y_Last, W_Last;
-    u16 static Ramp_CNT;
-    u16 static Chassis_Fast_CNT_x, Chassis_Fast_CNT;
-
-    Chassis_Fast_CNT = 0;
-    if ( fabs(_Chassis->wheel[0].Speed_Fdb) > 0.5
-         || fabs(_Chassis->wheel[1].Speed_Fdb) > 0.5
-         || fabs(_Chassis->wheel[2].Speed_Fdb) > 0.5
-         || fabs(_Chassis->wheel[3].Speed_Fdb) > 0.5 )
-    {
-        if ( Chassis_Fast_CNT_x < 1000 )
-            Chassis_Fast_CNT++;
-    } else
-        Chassis_Fast_CNT = 0;
-
-    if ( Ramp_CNT < 10 )
-    {
-        Ramp_CNT++;
-        _Chassis->V_x = V_x_Last;
-        _Chassis->V_y = V_y_Last;
-        _Chassis->w   = W_Last;
-    } else
-    {
-        Ramp_CNT = 0;
-        if ( _Chassis->V_x != 0 && Chassis_Fast_CNT < 1000 )
+        case CHASSIS_FOLLOW_GIMBAL:
         {
-            if ( V_x_Last * _Chassis->V_x < 0 )
-                _Chassis->V_x = 0;
-            else
+            chassis->omega_ref = PID_Calc(
+                &pid_chassis_follow_yaw, g_Chassis.angle_rel_yaw_fdb, 0);
+            resolve_update_wheel_ref(chassis, wheel);
+            wheelset_cal_send(wheel);
+            break;
+        }
+        case CHASSIS_INDEPENDENT:
+        {
+            if (first_time1)
             {
-                if ( _Chassis->V_x - V_x_Last > CHASSIS_RAMP_X_STEP_SIZE )
-                    _Chassis->V_x = V_x_Last + CHASSIS_RAMP_X_STEP_SIZE;
-                else if ( _Chassis->V_x - V_x_Last < -CHASSIS_RAMP_X_STEP_SIZE )
-                    _Chassis->V_x = V_x_Last - CHASSIS_RAMP_X_STEP_SIZE;
+                g_gyro.angle_base = g_gyro.angle;
+                first_time1=0;
             }
+            chassis->omega_ref = PID_Calc(
+                &pid_chassis_follow_yaw, g_gyro.angle, g_gyro.angle_base);
+            resolve_update_wheel_ref(chassis, wheel);
+            wheelset_cal_send(wheel);
+            break;
         }
-
-        if ( _Chassis->V_y != 0 && Chassis_Fast_CNT < 1000 )
+        case CHASSIS_ROTATE:
         {
-            if ( V_y_Last * _Chassis->V_y < 0 )
-                _Chassis->V_y = 0;
-            else
+            // 小陀螺时,依然是假想云台指向正方向
+            if (first_time2)
             {
-                if ( _Chassis->V_y - V_y_Last > CHASSIS_RAMP_Y_STEP_SIZE )
-                    _Chassis->V_y = V_y_Last + CHASSIS_RAMP_Y_STEP_SIZE;
-                else if ( _Chassis->V_y - V_y_Last < -CHASSIS_RAMP_Y_STEP_SIZE )
-                    _Chassis->V_y = V_y_Last - CHASSIS_RAMP_Y_STEP_SIZE;
+                g_gyro.angle_base = g_gyro.angle;
+                first_time2=0;
             }
+            chassis->omega_ref = PID_Calc(
+                &pid_chassis_follow_yaw, g_gyro.angle, g_gyro.angle_base);
+            chassis->omega_ref += ROTATE_SPEED;
+            resolve_update_wheel_ref(chassis, wheel);
+            wheelset_cal_send(wheel);
+            break;
         }
-
-        if ( W_Last * _Chassis->w < 0 )
+        case CHASSIS_REV_ROTATE:
         {
-            _Chassis->w = 0;
-        } else
-        {
-            if ( _Chassis->w - W_Last > CHASSIS_RAMP_W_STEP_SIZE )
-                _Chassis->w = W_Last + CHASSIS_RAMP_W_STEP_SIZE;
-            else if ( _Chassis->w - W_Last < -CHASSIS_RAMP_W_STEP_SIZE )
-                _Chassis->w = W_Last - CHASSIS_RAMP_W_STEP_SIZE;
+            if (first_time3)
+            {
+                g_gyro.angle_base = g_gyro.angle;
+                first_time3=0;
+            }
+            chassis->omega_ref = PID_Calc(
+                &pid_chassis_follow_yaw, g_gyro.angle, g_gyro.angle_base);
+            chassis->omega_ref += (-ROTATE_SPEED);
+            resolve_update_wheel_ref(chassis, wheel);
+            wheelset_cal_send(wheel);
+            break;
         }
+        default:
+            break;
     }
-
-    V_x_Last = _Chassis->V_x;
-    V_y_Last = _Chassis->V_y;
-    W_Last   = _Chassis->w;
+    chassis->last_mode = chassis->mode;
 }
-
-float Wheel_angVel_to_linVel(float spd_dps,float spd_mps)
-{
-    spd_mps= (spd_dps / M3508_DEG_PER_REV)
-           * (PI * CHASSIS_WHEEL_RADIUS) / M3508_REDUCTION_RATIO;
-    return spd_mps;
-}
-
-
-
-void Chassis_Wheel_Pid_Init(Chassis_t* Chassis)
-{
-    for ( int i = 0; i < 4; i++ )
-        PID_struct_init(
-            &(Chassis->wheel[i].Speed_Pid), POSITION_PID, 15000, 6000, 35000, 0, 0);
-}
-
-void Chassis_Wheel_Fdb_Set(wheel_t* w, float fdb)
-{
-    w->Speed_Fdb = fdb;
-}
-
-void Chassis_Resolve_Wheel2Vel(Chassis_t* Chassis)
-{
-    float static Dirction_Angle_rad;
-    Dirction_Angle_rad = Chassis->Dirction_Angle_deg * 3.1415926f / 180.0f;
-
-    Chassis->wheel[0].Speed_Ref = -Chassis->V_y * sin(Dirction_Angle_rad)
-                                  + Chassis->V_x * cos(Dirction_Angle_rad)
-                                  - Chassis->w;
-    Chassis->wheel[1].Speed_Ref = Chassis->V_y * cos(Dirction_Angle_rad)
-                                  + Chassis->V_x * sin(Dirction_Angle_rad)
-                                  - Chassis->w;
-    Chassis->wheel[2].Speed_Ref = Chassis->V_y * sin(Dirction_Angle_rad)
-                                  - Chassis->V_x * cos(Dirction_Angle_rad)
-                                  - Chassis->w;
-    Chassis->wheel[3].Speed_Ref = -Chassis->V_y * cos(Dirction_Angle_rad)
-                                  - Chassis->V_x * sin(Dirction_Angle_rad)
-                                  - Chassis->w;
-}
-
-void Chassis_Wheel_Cal_Pid(Chassis_t* Chassis)
-{
-    for ( int i = 0; i < 4; i++ )
-    {
-        pid_calc(
-            &Chassis->wheel[i].Speed_Pid,
-            Chassis->wheel[i].Speed_Fdb,
-            Chassis->wheel[i].Speed_Ref);
-    }
-}
-
-void Chassis_Wheel_CalSend() {
-    Chassis_Wheel_Cal_Pid(&Chassis);
-    C620_Out_Send(
-    &hcan2,
-    Chassis.wheel[0].Speed_Pid.out,
-    Chassis.wheel[1].Speed_Pid.out,
-    Chassis.wheel[2].Speed_Pid.out,
-    Chassis.wheel[3].Speed_Pid.out);
-}
-void Chassis_Wheel_Set_Resolve(
-    Chassis_t* Chassis,
-    float      V_x,
-    float      V_y,
-    float      w) {
-    Chassis_V_Ref_Set(Chassis, V_x, V_y, w);
-    Chassis_Ramp(Chassis);
-    Chassis_Resolve_Wheel2Vel(Chassis);
-}
-void Chassis_Wheel_Task(
-    Chassis_t* Chassis,
-    float      V_x,
-    float      V_y,
-    float      w)
-{
-    Chassis_Wheel_Set_Resolve(Chassis, V_x, V_y, w);
-    Chassis_Wheel_CalSend();
-}
-
-void Chassis_Speed_Cal(Chassis_t* Chassis)
-{
-    float static Dirction_Angle_rad;
-    Dirction_Angle_rad = Chassis->Dirction_Angle_deg * 3.1415926f / 180.0f;
-    Chassis->V_x_Fdb      = Chassis->wheel[0].Speed_Fdb * cos(Dirction_Angle_rad)
-                       + Chassis->wheel[1].Speed_Fdb * sin(Dirction_Angle_rad)
-                       + Chassis->wheel[2].Speed_Fdb * -cos(Dirction_Angle_rad)
-                       + Chassis->wheel[3].Speed_Fdb * -sin(Dirction_Angle_rad);
-
-    Chassis->V_y_Fdb = Chassis->wheel[0].Speed_Fdb * -sin(Dirction_Angle_rad)
-                       + Chassis->wheel[1].Speed_Fdb * cos(Dirction_Angle_rad)
-                       + Chassis->wheel[2].Speed_Fdb * sin(Dirction_Angle_rad)
-                       + Chassis->wheel[3].Speed_Fdb * -cos(Dirction_Angle_rad);
-}
-

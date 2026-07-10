@@ -1,148 +1,116 @@
 #include "inc/Can_Motor.h"
-
 #include "Chassis_Task.h"
 
-int wheelIsOK[4] = {0, 0, 0, 0};
-volatile Motor_Encoder_t Motor_Encoder[8] = {
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-};
+extern CAN_HandleTypeDef hcan1;
+extern CAN_HandleTypeDef hcan2;
 
-int can2_count = 0;
+uint8_t wheel_online[4] = {0};
 
-static float Float_Limit(float x, float max);
+Encoder_t Motor_Encoder[4];
 
-void Can2ReceiveMsgProcess(uint32_t StdId, uint8_t* data)
+void Encoder_Process(Encoder_t* Motor_Encoder, uint8_t* data)
 {
-    can2_count++;
+    Motor_Encoder->last_raw_value = Motor_Encoder->raw_value;
+    Motor_Encoder->current = (data[4] << 8) | data[5];
+    Motor_Encoder->raw_value = (data[0] << 8) | data[1];
+    Motor_Encoder->diff = Motor_Encoder->raw_value - Motor_Encoder->last_raw_value;
 
+    // M3508 电机过零点处理，对应 8192 线分辨率的一半
+    if (Motor_Encoder->diff < -4096)
+    {
+        Motor_Encoder->round_cnt++;
+    }
+    else if (Motor_Encoder->diff > 4096)
+    {
+        Motor_Encoder->round_cnt--;
+    }
+
+    Motor_Encoder->ecd_value = Motor_Encoder->raw_value + Motor_Encoder->round_cnt * 8192;
+    Motor_Encoder->Omega_rpm = (int)(int16_t)((data[2] << 8) | data[3]);
+    Motor_Encoder->temperature = data[6];
+}
+
+void Can2ReceiveMsgProcess(uint32_t StdId, uint8_t* data, Encoder_t* Chassis_M3508_Encoder)
+{
     switch (StdId)
     {
         case C620_FEEDBACK_ID_BASE + 1:
-            wheelIsOK[0] = 1;
-            (can2_count <= 50)
-                ? GetEncoderBias(&Motor_Encoder[0], data)
-                : M3508Encoder_Process(&Motor_Encoder[0], data);
+            wheel_online[0] = 1;
+            Encoder_Process(&Chassis_M3508_Encoder[0], data);
             break;
         case C620_FEEDBACK_ID_BASE + 2:
-            wheelIsOK[1] = 1;
-            (can2_count <= 50)
-                ? GetEncoderBias(&Motor_Encoder[1], data)
-                : M3508Encoder_Process(&Motor_Encoder[1], data);
+            wheel_online[1] = 1;
+            Encoder_Process(&Chassis_M3508_Encoder[1], data);
             break;
         case C620_FEEDBACK_ID_BASE + 3:
-            wheelIsOK[2] = 1;
-            (can2_count <= 50)
-                ? GetEncoderBias(&Motor_Encoder[2], data)
-                : M3508Encoder_Process(&Motor_Encoder[2], data);
+            wheel_online[2] = 1;
+            Encoder_Process(&Chassis_M3508_Encoder[2], data);
             break;
         case C620_FEEDBACK_ID_BASE + 4:
-            wheelIsOK[3] = 1;
-            (can2_count <= 50)
-                ? GetEncoderBias(&Motor_Encoder[3], data)
-                : M3508Encoder_Process(&Motor_Encoder[3], data);
+            wheel_online[3] = 1;
+            Encoder_Process(&Chassis_M3508_Encoder[3], data);
             break;
         default:
             break;
     }
 }
 
-void C620_Out_Send(
-    CAN_HandleTypeDef* hcan,
-    float iq1,
-    float iq2,
-    float iq3,
-    float iq4)
+void CAN_Start(void)
+{
+    CAN_FilterTypeDef can_filter_config = {0};
+    can_filter_config.FilterBank = 0;
+    can_filter_config.FilterMode = CAN_FILTERMODE_IDMASK;
+    can_filter_config.FilterScale = CAN_FILTERSCALE_32BIT;
+    can_filter_config.FilterIdHigh = 0x0000;
+    can_filter_config.FilterIdLow = 0x0000;
+    can_filter_config.FilterMaskIdHigh = 0x0000;
+    can_filter_config.FilterMaskIdLow = 0x0000;
+    can_filter_config.FilterFIFOAssignment = CAN_FILTER_FIFO0;
+    can_filter_config.FilterActivation = ENABLE;
+    can_filter_config.SlaveStartFilterBank = 14;
+    HAL_CAN_ConfigFilter(&hcan1, &can_filter_config);
+
+    can_filter_config.FilterBank = 14;
+    HAL_CAN_ConfigFilter(&hcan2, &can_filter_config);
+
+    HAL_CAN_Start(&hcan1);
+    HAL_CAN_Start(&hcan2);
+    HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING);
+    HAL_CAN_ActivateNotification(&hcan2, CAN_IT_RX_FIFO0_MSG_PENDING);
+}
+
+void C620_Out_Send(CAN_HandleTypeDef* hcan, int16_t iq0, int16_t iq1, int16_t iq2, int16_t iq3)
 {
     CAN_TxHeaderTypeDef tx_header;
     uint8_t tx_data[8];
     uint32_t tx_mailbox;
-    int16_t out1, out2, out3, out4;
 
-    out1 = (int16_t)Float_Limit(iq1, C620_CURRENT_LIMIT);
-    out2 = (int16_t)Float_Limit(iq2, C620_CURRENT_LIMIT);
-    out3 = (int16_t)Float_Limit(iq3, C620_CURRENT_LIMIT);
-    out4 = (int16_t)Float_Limit(iq4, C620_CURRENT_LIMIT);
-
-    tx_header.StdId = C620_CONTROL_ID;
     tx_header.IDE = CAN_ID_STD;
     tx_header.RTR = CAN_RTR_DATA;
     tx_header.DLC = 8;
+    tx_header.StdId = C620_CONTROL_ID;
+    tx_header.ExtId = 0;
     tx_header.TransmitGlobalTime = DISABLE;
 
-    tx_data[0] = (uint8_t)(out1 >> 8);
-    tx_data[1] = (uint8_t)out1;
-    tx_data[2] = (uint8_t)(out2 >> 8);
-    tx_data[3] = (uint8_t)out2;
-    tx_data[4] = (uint8_t)(out3 >> 8);
-    tx_data[5] = (uint8_t)out3;
-    tx_data[6] = (uint8_t)(out4 >> 8);
-    tx_data[7] = (uint8_t)out4;
+    tx_data[0] = (iq0 >> 8);
+    tx_data[1] = iq0;
+    tx_data[2] = (iq1 >> 8);
+    tx_data[3] = iq1;
+    tx_data[4] = (iq2 >> 8);
+    tx_data[5] = iq2;
+    tx_data[6] = (iq3 >> 8);
+    tx_data[7] = iq3;
 
     HAL_CAN_AddTxMessage(hcan, &tx_header, tx_data, &tx_mailbox);
 }
-
-void GetEncoderBias(volatile Motor_Encoder_t* v, uint8_t* data)
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
-    v->ecd_bias = (data[0] << 8) | data[1];
-    v->ecd_value = v->ecd_bias;
-    v->last_raw_value = v->ecd_bias;
-    v->temp_count++;
+    CAN_RxHeaderTypeDef rx_header;
+    uint8_t rx_data[8];
+    HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &rx_header, rx_data);
+
+    if (hcan->Instance == CAN2)
+    {
+        Can2ReceiveMsgProcess(rx_header.StdId, rx_data, Motor_Encoder);
+    }
 }
-
-void M3508Encoder_Process(volatile Motor_Encoder_t* v, uint8_t* data)
-{
-    v->current = (int16_t)((data[4] << 8) | data[5]);
-    int i = 0;
-    int32_t temp_sum = 0;
-
-    v->last_raw_value = v->raw_value;
-    v->raw_value = (data[0] << 8) | data[1];
-    v->diff = v->raw_value - v->last_raw_value;
-    if (v->diff < -M3508_ENC_HALF_RESOLUTION)
-    {
-        v->round_cnt++;
-        v->ecd_raw_rate = v->diff + M3508_ENC_RESOLUTION;
-    }
-    else if (v->diff > M3508_ENC_HALF_RESOLUTION)
-    {
-        v->round_cnt--;
-        v->ecd_raw_rate = v->diff - M3508_ENC_RESOLUTION;
-    }
-    else
-    {
-        v->ecd_raw_rate = v->diff;
-    }
-
-    v->ecd_value = v->raw_value + v->round_cnt * M3508_ENC_RESOLUTION;
-    v->ecd_angle_deg = (float)(v->raw_value - v->ecd_bias) * M3508_ANGLE_DEG_PER_TICK
-                       + v->round_cnt * M3508_DEG_PER_REV;
-
-    v->rate_buf[v->buf_count++] = v->ecd_raw_rate;
-    if (v->buf_count == M3508_SPEED_FILTER_BUF_SIZE)
-    {
-        v->buf_count = 0;
-    }
-
-    for (i = 0; i < M3508_SPEED_FILTER_BUF_SIZE; i++)
-    {
-        temp_sum += v->rate_buf[i];
-    }
-
-    v->filter_rate_rpm = (int16_t)((data[2] << 8) | data[3]);
-    v->angVel_dps = (int)((data[2] << 8) | data[3]) * RPM_TO_DPS;
-}
-
-static float Float_Limit(float x, float max)
-{
-    if (x > max) return max;
-    if (x < -max) return -max;
-    return x;
-}
-

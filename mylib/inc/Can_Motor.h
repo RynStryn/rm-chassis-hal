@@ -21,31 +21,25 @@
 
 #define PI                          3.1415926535f
 
-typedef struct {
+typedef struct
+{
     int32_t raw_value;
     int32_t last_raw_value;
     int32_t ecd_value;
     int32_t diff;
-    int32_t temp_count;
-    uint8_t buf_count;
-    int32_t ecd_bias;
-    int32_t ecd_raw_rate;
-    int32_t rate_buf[M3508_SPEED_FILTER_BUF_SIZE];
     int32_t round_cnt;
-    int16_t filter_rate_rpm;
-    int     angVel_dps;
-    float   ecd_angle_deg;
-    uint32_t temperature;
+    int Omega_rpm;
+    int8_t temperature;
     int16_t current;
-} Motor_Encoder_t;
+} Encoder_t;
 
-extern volatile Motor_Encoder_t Motor_Encoder[8];
-extern int wheelIsOK[4];
+extern Encoder_t Motor_Encoder[4];
+extern uint8_t Motor_Online_Flag[4];
+extern uint8_t wheel_online[4];
 
-void GetEncoderBias(volatile Motor_Encoder_t *v, uint8_t *data);
-void M3508Encoder_Process(volatile Motor_Encoder_t *v, uint8_t *data);
-
-void Can2ReceiveMsgProcess(uint32_t StdId, uint8_t *data);
-void C620_Out_Send(CAN_HandleTypeDef *hcan, float iq1, float iq2, float iq3, float iq4);
+void CAN_Start(void);
+void Encoder_Process(Encoder_t* Motor_Encoder, uint8_t* data);
+void Can2ReceiveMsgProcess(uint32_t StdId, uint8_t* data, Encoder_t* Chassis_M3508_Encoder);
+void C620_Out_Send(CAN_HandleTypeDef* hcan, int16_t iq0, int16_t iq1, int16_t iq2, int16_t iq3);
 
 #endif

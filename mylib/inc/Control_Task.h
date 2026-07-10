@@ -4,6 +4,5 @@
 #include "stm32f4xx_hal.h"
 
 void Control_Task(void);
-void CAN_Send_Task(void);
 
 #endif

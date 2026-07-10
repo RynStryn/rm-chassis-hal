@@ -1,105 +1,92 @@
 #include "inc/pid.h"
-#include "math.h"
 
-void abs_limit(float *a, float ABS_MAX)
+
+
+/**
+  * @brief          pid struct data init
+  * @param[out]     pid: PID结构数据指针
+  * @param[in]      mode: PID_POSITION:普通PID
+  *                 PID_DELTA: 差分PID
+  * @param[in]      PID: 0: kp, 1: ki, 2:kd
+  * @param[in]      max_out: pid最大输出
+  * @param[in]      max_iout: pid最大积分输出
+  * @retval         none
+  */
+void PID_Init(PID_t *pid, PID_Mode_e mode,float kp,float ki,float kd, float max_out, float max_iout)
 {
-  if (*a > ABS_MAX)
-    *a = ABS_MAX;
-  if (*a < -ABS_MAX)
-    *a = -ABS_MAX;
+    pid->mode = mode;
+    pid->Kp = kp;
+    pid->Ki = ki;
+    pid->Kd = kd;
+    pid->max_out = max_out;
+    pid->max_iout = max_iout;
+    pid->Dbuf[0] = pid->Dbuf[1] = pid->Dbuf[2] = 0.0f;
+    pid->error[0] = pid->error[1] = pid->error[2] = pid->Pout = pid->Iout = pid->Dout = pid->out = 0.0f;
 }
 
-static void pid_param_init(
-    pid_t*   pid,
-    uint32_t mode,
-    uint32_t maxout,
-    uint32_t intergral_limit,
-    float    kp,
-    float    ki,
-    float    kd)
+
+
+
+/**
+  * @brief          pid计算
+  * @param[out]     pid: PID结构数据指针
+  * @param[in]      fdb: 反馈数据
+  * @param[in]      ref: 设定值
+  * @retval         pid输出
+  */
+float PID_Calc(PID_t* pid, float fdb, float ref)
 {
-  pid->integral_limit = intergral_limit;
-  pid->max_out        = maxout;
-  pid->pid_mode       = mode;
-
-  pid->p = kp;
-  pid->i = ki;
-  pid->d = kd;
-}
-
-static void pid_reset(pid_t *pid, float kp, float ki, float kd)
-{
-  pid->p = kp;
-  pid->i = ki;
-  pid->d = kd;
-
-  pid->pout = 0;
-  pid->iout = 0;
-  pid->dout = 0;
-  pid->out  = 0;
-}
-
-float pid_calc(pid_t *pid, float get, float set)
-{
-  pid->get = get;
-  pid->set = set;
-  pid->err[NOW] = set - get;
-
-  if ((pid->input_max_err != 0) && (fabs(pid->err[NOW]) > pid->input_max_err))
-      return 0;
-
-  if (pid->pid_mode == POSITION_PID)
-  {
-      pid->pout = pid->p * pid->err[NOW];
-      pid->iout += pid->i * pid->err[NOW];
-      pid->dout = pid->d * (pid->err[NOW] - pid->err[LAST]);
-
-      abs_limit(&(pid->iout), pid->integral_limit);
-      pid->out = pid->pout + pid->iout + pid->dout;
-      abs_limit(&(pid->out), pid->max_out);
-  }
-  else if (pid->pid_mode == DELTA_PID)
-  {
-      pid->pout = pid->p * (pid->err[NOW] - pid->err[LAST]);
-      pid->iout = pid->i * pid->err[NOW];
-      pid->dout = pid->d * (pid->err[NOW] - 2 * pid->err[LAST] + pid->err[LLAST]);
-
-      pid->out += pid->pout + pid->iout + pid->dout;
-      abs_limit(&(pid->out), pid->max_out);
-  }
-
-  pid->err[LLAST] = pid->err[LAST];
-  pid->err[LAST]  = pid->err[NOW];
-
-  if ((pid->output_deadband != 0) && (fabs(pid->out) < pid->output_deadband))
-    return 0;
-  else
+    pid->error[2] = pid->error[1];
+    pid->error[1] = pid->error[0];
+    pid->set = ref;
+    pid->fdb = fdb;
+    pid->error[0] = ref - fdb;
+    if (pid->mode == PID_POSITION)
+    {
+        pid->Pout = pid->Kp * pid->error[0];
+        pid->Iout += pid->Ki * pid->error[0];
+        pid->Dbuf[2] = pid->Dbuf[1];
+        pid->Dbuf[1] = pid->Dbuf[0];
+        pid->Dbuf[0] = (pid->error[0] - pid->error[1]);
+        pid->Dout = pid->Kd * pid->Dbuf[0];
+        LimitMax(pid->Iout, pid->max_iout);
+        pid->out = pid->Pout + pid->Iout + pid->Dout;
+        LimitMax(pid->out, pid->max_out);
+    }
+    else if (pid->mode == PID_DELTA)
+    {
+        pid->Pout = pid->Kp * (pid->error[0] - pid->error[1]);
+        pid->Iout = pid->Ki * pid->error[0];
+        pid->Dbuf[2] = pid->Dbuf[1];
+        pid->Dbuf[1] = pid->Dbuf[0];
+        pid->Dbuf[0] = (pid->error[0] - 2.0f * pid->error[1] + pid->error[2]);
+        pid->Dout = pid->Kd * pid->Dbuf[0];
+        pid->out += pid->Pout + pid->Iout + pid->Dout;
+        LimitMax(pid->out, pid->max_out);
+    }
     return pid->out;
 }
 
-void PID_struct_init(
-    pid_t*   pid,
-    uint32_t mode,
-    uint32_t maxout,
-    uint32_t intergral_limit,
-    float kp,
-    float ki,
-    float kd)
-{
-  pid->f_param_init = pid_param_init;
-  pid->f_pid_reset  = pid_reset;
 
-  pid->f_param_init(pid, mode, maxout, intergral_limit, kp, ki, kd);
-  pid->f_pid_reset(pid, kp, ki, kd);
+
+/**
+  * @brief          pid 输出清除
+  * @param[out]     pid: PID结构数据指针
+  * @retval         none
+  */
+void PID_Clear(PID_t *pid)
+{
+    pid->error[0] = pid->error[1] = pid->error[2] = 0.0f;
+    pid->Dbuf[0] = pid->Dbuf[1] = pid->Dbuf[2] = 0.0f;
+    pid->out = pid->Pout = pid->Iout = pid->Dout = 0.0f;
+    pid->fdb = pid->set = 0.0f;
 }
 
-void pid_clear(pid_t *pid)
-{
-  pid->pout = 0;
-  pid->iout = 0;
-  pid->dout = 0;
-  pid->out  = 0;
-  pid->err[0] = 0;
-  pid->err[1] = 0;
-  pid->err[2] = 0;
-}
+
+
+
+
+
+
+
+
