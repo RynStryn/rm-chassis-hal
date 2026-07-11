@@ -26,12 +26,12 @@ typedef uint32_t u32;
 #define CHASSIS_RAMP_Y_STEP_SIZE    0.07f
 #define CHASSIS_RAMP_W_STEP_SIZE    0.3f
 
-#define CHASSIS_VX_LIMIT            3.0f
-#define CHASSIS_VY_LIMIT            10.0f
-#define CHASSIS_W_LIMIT             3.0f
+#define CHASSIS_VX_LIMIT            30.0f
+#define CHASSIS_VY_LIMIT            50.0f
+#define CHASSIS_W_LIMIT             30.0f
 
-#define CHASSIS_REMOTE_SENSITIVITY      0.020f
-#define CHASSIS_FOLLOW_GIMBLE_SENSITIVITY 0.05f
+#define CHASSIS_REMOTE_SENSITIVITY      0.05f
+//#define CHASSIS_FOLLOW_GIMBLE_SENSITIVITY 0.05f
 
 #define CHASSIS_KW_X_SPEED              10.0f
 #define CHASSIS_KW_Y_SPEED              10.0f

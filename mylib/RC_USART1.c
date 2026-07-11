@@ -1,5 +1,6 @@
 #include "RC_USART1.h"
 #include "FS_i6.h"
+#include "Fault_Diagnosis_Task.h"
 #include "main.h"
 
 extern UART_HandleTypeDef huart1;
@@ -29,6 +30,7 @@ void RC_UART_RxCallback(uint16_t Size)
     if (Size == RC_DATA_FRAME_LENGTH)
     {
         FS_Data_Get(USART1_DMA_RX_BUF);
+        Equipment_Cnt_Clear(&Peripheral_State.Remote_Control);
     }
 
     if (HAL_UARTEx_ReceiveToIdle_DMA(&huart1, USART1_DMA_RX_BUF, BSP_USART1_DMA_RX_BUF_LEN) != HAL_OK)

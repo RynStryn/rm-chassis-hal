@@ -2,12 +2,13 @@
 #define __CH040_USART_H__
 
 #include "stm32f4xx_hal.h"
+#include "config.h"
 
-#define CH040_RX_BUFF_SIZE              100
+#define CH040_RX_BUFF_SIZE              82
 #define CH040_DATA_FRAME_LENGTH         82
 #define CH040_FRAME_HEADER_LENGTH       6
 
-typedef struct __attribute__((packed))
+ typedef struct
 {
     uint8_t     tag;
     uint16_t    main_status;
@@ -35,13 +36,13 @@ typedef struct
     float Z_Acc;
 } CH040DATA_t;
 
-extern uint8_t CH040_Rx_Buffer[CH040_RX_BUFF_SIZE];
+extern uint8_t CH040_Rx_Buffer[82];
 extern CH040_data_t imu_data;
 extern CH040DATA_t CH040DATA;
+extern volatile uint16_t debug_size;
 
-void USART3_Init(uint32_t baud_rate);
+void USART6_Init(uint32_t baud_rate);
 void CH040_Data_Get(CH040_data_t* imu_data, CH040DATA_t* CH040DATA);
-void USART3_IRQHandler(void);
 void CH040_UART_RxCallback(uint16_t Size);
 
 #endif

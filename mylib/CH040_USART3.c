@@ -3,46 +3,49 @@
 #include "Chassis_Task.h"
 #include "main.h"
 
-extern UART_HandleTypeDef huart3;
+extern UART_HandleTypeDef huart6;
 
-uint8_t      CH040_Rx_Buffer[CH040_RX_BUFF_SIZE];
+uint8_t      CH040_Rx_Buffer[82];
 CH040_data_t imu_data;
 CH040DATA_t  CH040DATA;
 
 static uint8_t frame_buf[CH040_DATA_FRAME_LENGTH];
 static uint8_t frame_rdy;
+volatile uint16_t debug_size = 0;
 
-void USART3_Init(uint32_t baud_rate)
+void USART6_Init(uint32_t baud_rate)
 {
-    huart3.Init.BaudRate = baud_rate;
+    huart6.Init.BaudRate = baud_rate;
 
-    if (HAL_UART_Init(&huart3) != HAL_OK)
+    if (HAL_UART_Init(&huart6) != HAL_OK)
     {
         Error_Handler();
     }
 
-    if (HAL_UARTEx_ReceiveToIdle_DMA(&huart3, CH040_Rx_Buffer, CH040_RX_BUFF_SIZE) != HAL_OK)
+    if (HAL_UARTEx_ReceiveToIdle_DMA(&huart6, CH040_Rx_Buffer, CH040_RX_BUFF_SIZE) != HAL_OK)
     {
         Error_Handler();
     }
 
-    __HAL_DMA_DISABLE_IT(huart3.hdmarx, DMA_IT_HT);
+    __HAL_DMA_DISABLE_IT(huart6.hdmarx, DMA_IT_HT);
 }
 
 void CH040_UART_RxCallback(uint16_t Size)
 {
+    debug_size = Size;
+
     if (Size == CH040_DATA_FRAME_LENGTH)
     {
         memcpy(frame_buf, CH040_Rx_Buffer, CH040_DATA_FRAME_LENGTH);
         frame_rdy = 1;
     }
 
-    if (HAL_UARTEx_ReceiveToIdle_DMA(&huart3, CH040_Rx_Buffer, CH040_RX_BUFF_SIZE) != HAL_OK)
+    if (HAL_UARTEx_ReceiveToIdle_DMA(&huart6, CH040_Rx_Buffer, CH040_RX_BUFF_SIZE) != HAL_OK)
     {
         Error_Handler();
     }
 
-    __HAL_DMA_DISABLE_IT(huart3.hdmarx, DMA_IT_HT);
+    __HAL_DMA_DISABLE_IT(huart6.hdmarx, DMA_IT_HT);
 }
 
 static void CH040_Frame_Parse(uint8_t* buf, CH040_data_t* data)

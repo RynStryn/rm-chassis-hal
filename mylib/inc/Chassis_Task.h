@@ -8,6 +8,7 @@ typedef struct {
     float angle;
     float angle_base;
     float angle_rel_base;
+    float angle_base2;
     float omega;
 } gyro_t;
 
@@ -50,5 +51,6 @@ extern wheel_t   g_wheel;
 extern gyro_t    g_gyro;
 void  chassis_pid_init(void);
 void  chassis_task(chassis_t* chassis, wheel_t* wheel, gyro_t* gyro);
+void  gimbal_task(void);
 
 #endif

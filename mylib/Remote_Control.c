@@ -212,7 +212,7 @@ void   RC_Toggle_Action_Detect(RC_DT7_Data_t* RC_data)
     else if (RC_data->toggle_SW.ch4 == -660)
         RC_data->toggle_SW.Trigger_Down = 1;
 
-    if (RC_data->toggle_SW.ch4 == 0 & RC_data->toggle_SW.Trigger_Up == 1)
+    if (RC_data->toggle_SW.ch4 == 0 && RC_data->toggle_SW.Trigger_Up == 1)
     {
         RC_data->toggle_SW.Trigger_Up = 0;
         if (RC_data->toggle_SW.Trigger_Up_Action.Toggle_Press == 1)
@@ -221,7 +221,7 @@ void   RC_Toggle_Action_Detect(RC_DT7_Data_t* RC_data)
             RC_data->toggle_SW.Trigger_Up_Action.Toggle_Press = 1;
     }
 
-    if (RC_data->toggle_SW.ch4 == 0 & RC_data->toggle_SW.Trigger_Down == 1)
+    if (RC_data->toggle_SW.ch4 == 0 && RC_data->toggle_SW.Trigger_Down == 1)
     {
         RC_data->toggle_SW.Trigger_Down = 0;
         if (RC_data->toggle_SW.Trigger_Down_Action.Toggle_Press == 1)
@@ -297,13 +297,13 @@ void RC_Cmd_Interpreter(void)
             break;
         case CONTORLLER:
         {
-            int16_t ch1       = dead_zone(g_RC_data.stick.ch1, RC_DEAD_ZONE);
             int16_t ch0       = dead_zone(g_RC_data.stick.ch0, RC_DEAD_ZONE);
+            int16_t ch1       = dead_zone(g_RC_data.stick.ch1, RC_DEAD_ZONE);
             int16_t ch2       = dead_zone(g_RC_data.stick.ch2, RC_DEAD_ZONE);
             int16_t ch3       = dead_zone(g_RC_data.stick.ch3, RC_DEAD_ZONE);
-            g_Chassis.V_X_ref = (float) (ch2-1024) * CHASSIS_REMOTE_SENSITIVITY;
-            g_Chassis.V_Y_ref = (float) (ch3-1024) * CHASSIS_REMOTE_SENSITIVITY;
-            yaw_ang_inc      = (float) (ch0-1024) * CHASSIS_REMOTE_SENSITIVITY;
+            g_Chassis.V_X_ref = -(float) (ch0-1024) * CHASSIS_REMOTE_SENSITIVITY;
+            g_Chassis.V_Y_ref = -(float) (ch1-1024) * CHASSIS_REMOTE_SENSITIVITY;
+            yaw_ang_inc      = (float) (ch2-1024) * 0.0005f;
             //switch (g_RC_data.toggle_SW.s2)
             switch (Remote_Data.swc)
             {
@@ -311,10 +311,22 @@ void RC_Cmd_Interpreter(void)
                     g_Chassis.mode = CHASSIS_RELAX;
                     break;
                 case MIDDLE:
-                    g_Chassis.mode = CHASSIS_INDEPENDENT;
+                    if (Remote_Data.swd==UP)
+                        {g_Chassis.mode = CHASSIS_INDEPENDENT;}
+                    else
+                    {
+                        g_Chassis.mode = CHASSIS_FOLLOW_GIMBAL;
+                    }
                     break;
                 case DOWN://_
-                    g_Chassis.mode = CHASSIS_ROTATE;
+                    if (Remote_Data.swd==UP)
+                    {
+                        g_Chassis.mode = CHASSIS_ROTATE;
+                    }
+                    else
+                    {
+                        g_Chassis.mode = CHASSIS_REV_ROTATE;
+                    }
                     break;
             }
 
