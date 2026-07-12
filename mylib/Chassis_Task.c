@@ -24,7 +24,7 @@ void chassis_pid_init(void)
     for (int i = 0; i < 4; i++)
     {
         PID_Init(
-            &pid_wheel[i], PID_POSITION, 1.0f, 0.0f, 0.0f, 10000.0f, 5000.0f);
+            &pid_wheel[i], PID_POSITION, 1.0f, 0.0f, 0.002f, 10000.0f, 5000.0f);
     }
     PID_Init(&pid_chassis_follow_yaw,
         PID_POSITION,
@@ -90,10 +90,6 @@ void wheel_fdb_update(void)
 }
 
 void gimbal_task() {}
-int  first_time1 = 1;
-int  first_time2 = 1;
-int  first_time3 = 1;
-int  first_time4 = 1;
 int flag=1;
 void chassis_task(chassis_t* chassis, wheel_t* wheel, gyro_t* gyro)
 {
@@ -106,10 +102,6 @@ void chassis_task(chassis_t* chassis, wheel_t* wheel, gyro_t* gyro)
     if (chassis->last_mode != chassis->mode)
     {
         Chassis_Clear();
-        first_time1 = 0;
-        first_time2 = 0;
-        first_time3 = 0;
-        first_time4 =0;
     }
     g_gimbal.yaw_angle_ref += yaw_ang_inc;
     // 假定即时响应
@@ -133,11 +125,6 @@ void chassis_task(chassis_t* chassis, wheel_t* wheel, gyro_t* gyro)
         {
     g_gimbal.yaw_angle_ref -= (2*yaw_ang_inc);
 
-            // if (first_time2)
-            // {
-            //     g_gyro.angle_base = g_gyro.angle;
-            //     first_time2       = 0;
-            // }
             for (int i = 0; i < 4; i++)
             {
                 wheel->angle_rel_yaw[i]
@@ -151,11 +138,7 @@ void chassis_task(chassis_t* chassis, wheel_t* wheel, gyro_t* gyro)
         }
         case CHASSIS_INDEPENDENT:
         {
-            // if (first_time1)
-            // {
-            //     g_gyro.angle_base2 = g_gyro.angle;
-            //     first_time1       = 0;
-            // }
+
             for (int i = 0; i < 4; i++)
             {
                 wheel->angle_rel_yaw[i]
@@ -171,11 +154,7 @@ void chassis_task(chassis_t* chassis, wheel_t* wheel, gyro_t* gyro)
         case CHASSIS_ROTATE:
         {
             // 小陀螺时,依然是假想云台指向正方向
-            // if (first_time4)
-            // {
-            //     g_gyro.angle_base = g_gyro.angle;
-            //     first_time4       = 0;
-            // }
+
             for (int i = 0; i < 4; i++)
             {
                 wheel->angle_rel_yaw[i]
@@ -191,11 +170,6 @@ void chassis_task(chassis_t* chassis, wheel_t* wheel, gyro_t* gyro)
         }
         case CHASSIS_REV_ROTATE:
         {
-            // if (first_time3)
-            // {
-            //     g_gyro.angle_base = g_gyro.angle;
-            //     first_time3       = 0;
-            // }
             for (int i = 0; i < 4; i++)
             {
                 wheel->angle_rel_yaw[i]

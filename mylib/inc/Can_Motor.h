@@ -10,15 +10,8 @@
 #define C620_CURRENT_LIMIT          C620_CURRENT_MAX
 
 #define M3508_ENC_RESOLUTION        8192
-#define M3508_ENC_HALF_RESOLUTION   (M3508_ENC_RESOLUTION / 2)
-#define M3508_ANGLE_DEG_PER_TICK    (360.0f / M3508_ENC_RESOLUTION)
-#define M3508_DEG_PER_REV           360.0f
 #define M3508_REDUCTION_RATIO       (3591.0f / 187.0f)
-
 #define RPM_TO_DPS                  6
-
-#define M3508_SPEED_FILTER_BUF_SIZE 6
-
 #define PI                          3.1415926535f
 
 typedef struct

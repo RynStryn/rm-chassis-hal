@@ -8,7 +8,8 @@
 #define CH040_DATA_FRAME_LENGTH         82
 #define CH040_FRAME_HEADER_LENGTH       6
 
- typedef struct
+//__packed typedef struct
+typedef struct
 {
     uint8_t     tag;
     uint16_t    main_status;

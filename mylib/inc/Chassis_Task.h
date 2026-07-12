@@ -46,6 +46,7 @@ typedef struct {
     float yaw_omega_ref;
 } gimbal_t;
 
+
 extern chassis_t g_Chassis;
 extern wheel_t   g_wheel;
 extern gyro_t    g_gyro;
