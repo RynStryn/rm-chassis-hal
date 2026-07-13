@@ -2,6 +2,7 @@
 #include <math.h>
 #include "Can_Motor.h"
 #include "Remote_Control.h"
+#include "Power_Control_Task.h"
 
 extern CAN_HandleTypeDef hcan2;
 
@@ -133,6 +134,7 @@ void chassis_task(chassis_t* chassis, wheel_t* wheel, gyro_t* gyro)
             chassis->omega_ref = PID_Calc(
                 &pid_chassis_follow_yaw, g_gyro.angle_rel_base - g_gimbal.yaw_angle_fdb, 0);
             resolve_update_wheel_ref(chassis, wheel);
+            power_ctrl(wheel->Vel_ang_ref, wheel->Vel_ang, pid_wheel);
             wheelset_cal_send(wheel);
             break;
         }
@@ -148,6 +150,7 @@ void chassis_task(chassis_t* chassis, wheel_t* wheel, gyro_t* gyro)
             // PID_Calc(
             //     &pid_chassis_follow_yaw, g_gyro.angle, g_gyro.angle_base2);
             resolve_update_wheel_ref(chassis, wheel);
+            power_ctrl(wheel->Vel_ang_ref, wheel->Vel_ang, pid_wheel);
             wheelset_cal_send(wheel);
             break;
         }
@@ -165,6 +168,7 @@ void chassis_task(chassis_t* chassis, wheel_t* wheel, gyro_t* gyro)
                 //   &pid_chassis_follow_yaw, g_gyro.angle, g_gyro.angle_base)
                 +ROTATE_SPEED;
             resolve_update_wheel_ref(chassis, wheel);
+            power_ctrl(wheel->Vel_ang_ref, wheel->Vel_ang, pid_wheel);
             wheelset_cal_send(wheel);
             break;
         }
@@ -180,6 +184,7 @@ void chassis_task(chassis_t* chassis, wheel_t* wheel, gyro_t* gyro)
                 //   &pid_chassis_follow_yaw, g_gyro.angle, g_gyro.angle_base)
                 -ROTATE_SPEED;
             resolve_update_wheel_ref(chassis, wheel);
+            power_ctrl(wheel->Vel_ang_ref, wheel->Vel_ang, pid_wheel);
             wheelset_cal_send(wheel);
             break;
         }

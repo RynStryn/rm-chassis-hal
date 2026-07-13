@@ -50,6 +50,10 @@ typedef struct {
 extern chassis_t g_Chassis;
 extern wheel_t   g_wheel;
 extern gyro_t    g_gyro;
+
+extern float Power_Limit_Rate;
+extern float Power_Limit_By_Current_k[4];
+
 void  chassis_pid_init(void);
 void  chassis_task(chassis_t* chassis, wheel_t* wheel, gyro_t* gyro);
 void  gimbal_task(void);
