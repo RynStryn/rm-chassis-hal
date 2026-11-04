@@ -24,7 +24,22 @@ typedef enum {
     CHASSIS_INDEPENDENT,  // 纯平移
     CHASSIS_ROTATE,
     CHASSIS_REV_ROTATE,
+    CHASSIS_FLYING_SLOPE,
 } chassis_mode_e;
+
+typedef enum {
+    CHAS_STATE_STOP,
+    CHAS_STATE_RUN_READY,
+    CHAS_STATE_RUN,
+    CHAS_STATE_UP_SLOPE,
+    CHAS_STATE_DOWN_LOW_SLOPE,
+    CHAS_STATE_DOWN_HIGH_SLOPE,
+} chassis_move_state_e;
+
+typedef enum {
+    CHASSIS_S_NORMAL,
+    CHASSIS_S_FAST,
+} chassis_speed_mode_e;
 
 typedef struct {
     float          angle_rel_yaw_fdb;
@@ -37,6 +52,10 @@ typedef struct {
     float          V_Y_fdb;
     chassis_mode_e mode;
     chassis_mode_e last_mode;
+    uint8_t                Flag_Out_Break;
+    float                  Max_Power;
+    chassis_move_state_e   Chassis_Move_State;
+    chassis_speed_mode_e   Chassis_Speed_Mode;
 } chassis_t;
 // 这些量省略rel_base
 typedef struct {
@@ -50,9 +69,6 @@ typedef struct {
 extern chassis_t g_Chassis;
 extern wheel_t   g_wheel;
 extern gyro_t    g_gyro;
-
-extern float Power_Limit_Rate;
-extern float Power_Limit_By_Current_k[4];
 
 void  chassis_pid_init(void);
 void  chassis_task(chassis_t* chassis, wheel_t* wheel, gyro_t* gyro);

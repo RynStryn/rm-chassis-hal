@@ -1,0 +1,69 @@
+{
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "default-gcc",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "toolchainFile": "${sourceDir}/cmake/gcc-arm-none-eabi.cmake",
+            "cacheVariables": {
+            }
+        },
+        {
+            "name": "default-starm",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "toolchainFile": "${sourceDir}/cmake/starm-clang.cmake",
+            "cacheVariables": {
+            }
+        },
+        {
+            "name": "gcc-debug",
+            "inherits": "default-gcc",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "gcc-release",
+            "inherits": "default-gcc",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "starm-debug",
+            "inherits": "default-starm",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "starm-release",
+            "inherits": "default-starm",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "gcc-debug",
+            "configurePreset": "gcc-debug"
+        },
+        {
+            "name": "gcc-release",
+            "configurePreset": "gcc-release"
+        },
+        {
+            "name": "starm-debug",
+            "configurePreset": "starm-debug"
+        },
+        {
+            "name": "starm-release",
+            "configurePreset": "starm-release"
+        }
+    ]
+}

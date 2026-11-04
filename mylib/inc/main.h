@@ -34,6 +34,7 @@ extern "C" {
 #include "Can_Motor.h"
 #include "Chassis_Task.h"
 #include "Control_Task.h"
+#include "JudgeSys.h"
 #include "config.h"
 /* USER CODE END Includes */
 
