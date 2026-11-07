@@ -1,18 +1,12 @@
-# RoboMaster 底盘：标准库到 HAL 的重构
 
-从既有麦轮机器人底盘移植到 HAL，将控制任务、遥控、裁判、离线检测与功率控制重新组织，并保留综合移植与后续精简两个阶段。
+HAL库,麦轮底盘
 
 **当前分支**：`main`。代表工作树。
 
-**留存状态**：底盘重构开发中。
+**留存状态**：底盘重构。
 
 [查看项目时间线](docs/TIMELINE.md)
 
-## 来源
-
-Baby 标准库底盘与 RoboMaster 相关模块；沿用代码来源和个人迁移工作待分别署名。
-
-个人职责待补充。保留原工程中的来源说明和许可证；本次归档没有进行构建、烧录或实机验收。
 
 ## 代码与历史分支
 
@@ -20,7 +14,7 @@ Baby 标准库底盘与 RoboMaster 相关模块；沿用代码来源和个人迁
 | --- | --- |
 | `main` | 项目代表工作树，包含本次保存的现存源码。 |
 | [`archive/early-hal-integration`](https://github.com/RynStryn/rm-chassis-hal/tree/archive/early-hal-integration) | 7 月 3 日前后的综合 HAL 移植树 |
-| [`archive/baby-standard-library`](https://github.com/RynStryn/rm-chassis-hal/tree/archive/baby-standard-library) | Baby 标准库整车来源工作树 |
+| [`archive/baby-standard-library`] |参考(未公开) |
 
 ## 时间口径
 
